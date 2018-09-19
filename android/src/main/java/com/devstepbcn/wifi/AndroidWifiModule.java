@@ -11,6 +11,7 @@ import android.net.NetworkInfo;
 import android.net.NetworkRequest;
 import android.net.Uri;
 import android.net.wifi.ScanResult;
+import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
@@ -90,60 +91,72 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 	//Is important to enable only when communicating with the device via wifi
 	//and remember to disable it when disconnecting from device.
 	@ReactMethod
-	public void forceWifiUsage(boolean useWifi) {
-        boolean canWriteFlag = false;
+	public void forceWifiUsage(boolean useWifi, final String ssid) {
+  	boolean canWriteFlag = false;
 
-        if (useWifi) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+    if (useWifi) {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    canWriteFlag = Settings.System.canWrite(context);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+	        canWriteFlag = Settings.System.canWrite(context);
 
-                    if (!canWriteFlag) {
-                        Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
-                        intent.setData(Uri.parse("package:" + context.getPackageName()));
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+	        if (!canWriteFlag) {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
+            intent.setData(Uri.parse("package:" + context.getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
-                        context.startActivity(intent);
-                    }
+            context.startActivity(intent);
+	        }
 
-                }
-
-
-                if (((Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) && canWriteFlag) || ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) && !(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M))) {
-                    final ConnectivityManager manager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-                    NetworkRequest.Builder builder;
-                    builder = new NetworkRequest.Builder();
-                    //set the transport type do WIFI
-                    builder.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
-
-
-                    manager.requestNetwork(builder.build(), new ConnectivityManager.NetworkCallback() {
-                        @Override
-                        public void onAvailable(Network network) {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                manager.bindProcessToNetwork(network);
-                            }
-                            else {
-                                //This method was deprecated in API level 23
-                                ConnectivityManager.setProcessDefaultNetwork(network);
-                            }
-                            manager.unregisterNetworkCallback(this);
-                        }
-                    });
-                }
-
-
-            }
-        } else {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                ConnectivityManager manager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-                manager.bindProcessToNetwork(null);
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                ConnectivityManager.setProcessDefaultNetwork(null);
-            }
         }
+
+        if (((Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) && canWriteFlag) || ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) && !(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M))) {
+          final ConnectivityManager manager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+          NetworkRequest.Builder builder;
+          builder = new NetworkRequest.Builder();
+          //set the transport type do WIFI
+          builder.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
+
+          manager.requestNetwork(builder.build(), new ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onAvailable(Network network) {
+							setNetworkRoute(null);
+							if(ssid == null || getSSID().equals(ssid))
+								setNetworkRoute(network);
+					    manager.unregisterNetworkCallback(this);
+            }
+          });
+        }
+
+
+      }
+    } else {
+			setNetworkRoute(null);
     }
+  }
+
+	private void setNetworkRoute(Network network) {
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+			ConnectivityManager manager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+			manager.bindProcessToNetwork(network);
+		} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+			ConnectivityManager.setProcessDefaultNetwork(network);
+		}
+	}
+
+  private String getSSID() {
+		WifiInfo info = wifi.getConnectionInfo();
+
+		// This value should be wrapped in double quotes, so we need to unwrap it.
+		String ssid = info.getSSID();
+		if (ssid.startsWith("\"") && ssid.endsWith("\"")) {
+			ssid = ssid.substring(1, ssid.length() - 1);
+		}
+
+		if(info.getSupplicantState() == SupplicantState.COMPLETED)
+			return ssid;
+		return "";
+	}
 
 	//Method to check if wifi is enabled
 	@ReactMethod
@@ -253,7 +266,7 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 		if (updateNetwork == -1)
 			return false;
 
-    	boolean disconnect = wifi.disconnect();
+    boolean disconnect = wifi.disconnect();
 
 		if (!disconnect)
 			return false;
@@ -272,13 +285,7 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 	//This method will return current ssid
 	@ReactMethod
 	public void getSSID(final Callback callback) {
-		WifiInfo info = wifi.getConnectionInfo();
-
-		// This value should be wrapped in double quotes, so we need to unwrap it.
-		String ssid = info.getSSID();
-		if (ssid.startsWith("\"") && ssid.endsWith("\"")) {
-			ssid = ssid.substring(1, ssid.length() - 1);
-		}
+		this.getSSID();
 
 		callback.invoke(ssid);
 	}
