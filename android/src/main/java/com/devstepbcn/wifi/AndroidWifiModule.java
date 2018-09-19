@@ -285,7 +285,7 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 	//This method will return current ssid
 	@ReactMethod
 	public void getSSID(final Callback callback) {
-		this.getSSID();
+		String ssid = getSSID();
 
 		callback.invoke(ssid);
 	}
