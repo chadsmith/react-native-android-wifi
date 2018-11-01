@@ -120,29 +120,34 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
           manager.requestNetwork(builder.build(), new ConnectivityManager.NetworkCallback() {
             @Override
             public void onAvailable(Network network) {
-							setNetworkRoute(null);
-							if(ssid == null || getSSID().equals(ssid))
-								setNetworkRoute(network);
-					    manager.unregisterNetworkCallback(this);
+		    			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+								ConnectivityManager manager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+								manager.bindProcessToNetwork(network);
+							} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+								ConnectivityManager.setProcessDefaultNetwork(network);
+							}
+							if(ssid == null || getSSID().equals(ssid)) {
+								if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+									ConnectivityManager manager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+									manager.bindProcessToNetwork(network);
+								} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+									ConnectivityManager.setProcessDefaultNetwork(network);
+								}
+							}
+							manager.unregisterNetworkCallback(this);
             }
           });
         }
-
-
       }
     } else {
-			setNetworkRoute(null);
-    }
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+				ConnectivityManager manager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+				manager.bindProcessToNetwork(null);
+			} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+				ConnectivityManager.setProcessDefaultNetwork(null);
+			}
+  	}
   }
-
-	private void setNetworkRoute(Network network) {
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-			ConnectivityManager manager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-			manager.bindProcessToNetwork(network);
-		} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-			ConnectivityManager.setProcessDefaultNetwork(network);
-		}
-	}
 
   private String getSSID() {
 		WifiInfo info = wifi.getConnectionInfo();
